@@ -633,7 +633,211 @@ class MusicApp {
     this.renderSongs();
   }
 
-  handleCreatePlaylist(e) {
+    handleCreatePlaylist(e) {
     e.preventDefault();
     
-    const formData = new FormData(
+    const formData = new FormData(e.target);
+    const playlistData = {
+      id: Date.now(),
+      name: formData.get('name') || 'New Playlist',
+      description: formData.get('description') || '',
+      songCount: 0,
+      songs: []
+    };
+
+    // Add to local data
+    this.playlists.push(playlistData);
+    this.saveData();
+
+    // Reset form and close modal
+    e.target.reset();
+    this.closeAllModals();
+
+    // Refresh display
+    this.renderPlaylists();
+  }
+
+  // Open a playlist view
+  openPlaylist(playlistId) {
+    const playlist = this.playlists.find(p => p.id === playlistId);
+    if (!playlist) return;
+
+    // Get songs in this playlist
+    const playlistSongs = this.songs.filter(song => playlist.songs.includes(song.id));
+    
+    // Render the playlist songs
+    this.renderSongs(playlistSongs);
+    
+    // Update UI to show we're viewing a playlist
+    const header = document.getElementById('playlist-view-header');
+    const description = document.getElementById('playlist-view-description');
+    const editBtn = document.getElementById('edit-playlist-btn');
+    
+    if (header) header.textContent = playlist.name;
+    if (description) description.textContent = playlist.description;
+    
+    if (editBtn) {
+      editBtn.onclick = () => this.showEditPlaylistModal(playlistId);
+      editBtn.style.display = 'block';
+    }
+    
+    // Show the playlist view
+    document.getElementById('songs-page').classList.remove('active');
+    document.getElementById('playlist-view-page').classList.add('active');
+
+    // Update back button
+    const backButton = document.getElementById('playlist-view-back');
+    if (backButton) {
+      backButton.onclick = () => {
+        document.getElementById('playlist-view-page').classList.remove('active');
+        document.getElementById('songs-page').classList.add('active');
+        this.renderSongs();
+      };
+    }
+  }
+
+  // Show modal for editing playlist
+  showEditPlaylistModal(playlistId) {
+    const playlist = this.playlists.find(p => p.id === playlistId);
+    if (!playlist) return;
+
+    const modal = document.getElementById('edit-playlist-modal');
+    const form = document.getElementById('edit-playlist-form');
+    const nameInput = document.getElementById('edit-playlist-name');
+    const descInput = document.getElementById('edit-playlist-desc');
+    const deleteBtn = document.getElementById('delete-playlist-btn');
+
+    if (!modal || !form || !nameInput || !descInput || !deleteBtn) return;
+
+    // Fill form with current values
+    nameInput.value = playlist.name;
+    descInput.value = playlist.description;
+
+    // Set up form submission
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      playlist.name = nameInput.value;
+      playlist.description = descInput.value;
+      this.saveData();
+      this.closeAllModals();
+      this.openPlaylist(playlistId); // Refresh the view
+    };
+
+    // Set up delete button
+    deleteBtn.onclick = () => {
+      if (confirm(`Are you sure you want to delete "${playlist.name}"?`)) {
+        this.deletePlaylist(playlistId);
+        this.closeAllModals();
+        document.getElementById('playlist-view-page').classList.remove('active');
+        document.getElementById('songs-page').classList.add('active');
+        this.renderPlaylists();
+      }
+    };
+
+    // Show the modal
+    modal.style.display = 'flex';
+  }
+
+  // Delete a playlist
+  deletePlaylist(playlistId) {
+    this.playlists = this.playlists.filter(p => p.id !== playlistId);
+    this.saveData();
+  }
+
+  // Add song to playlist
+  addSongToPlaylist(playlistId, songId) {
+    const playlist = this.playlists.find(p => p.id === playlistId);
+    if (!playlist) return false;
+
+    if (!playlist.songs.includes(songId)) {
+      playlist.songs.push(songId);
+      playlist.songCount = playlist.songs.length;
+      this.saveData();
+      return true;
+    }
+    return false;
+  }
+
+  // Remove song from playlist
+  removeSongFromPlaylist(playlistId, songId) {
+    const playlist = this.playlists.find(p => p.id === playlistId);
+    if (!playlist) return false;
+
+    const index = playlist.songs.indexOf(songId);
+    if (index !== -1) {
+      playlist.songs.splice(index, 1);
+      playlist.songCount = playlist.songs.length;
+      this.saveData();
+      return true;
+    }
+    return false;
+  }
+
+  // Show modal to add song to playlist
+  showAddToPlaylistModal(songId) {
+    const modal = document.getElementById('add-to-playlist-modal');
+    const listContainer = document.getElementById('playlist-select-list');
+    
+    if (!modal || !listContainer) return;
+
+    // Clear previous list
+    listContainer.innerHTML = '';
+
+    // Create list of playlists
+    this.playlists.forEach(playlist => {
+      const isInPlaylist = playlist.songs.includes(songId);
+      const item = document.createElement('div');
+      item.className = `playlist-select-item ${isInPlaylist ? 'in-playlist' : ''}`;
+      item.innerHTML = `
+        <span>${playlist.name} (${playlist.songCount})</span>
+        ${isInPlaylist ? 
+          '<i class="fas fa-check"></i>' : 
+          '<i class="fas fa-plus"></i>'}
+      `;
+      
+      item.onclick = () => {
+        if (isInPlaylist) {
+          this.removeSongFromPlaylist(playlist.id, songId);
+        } else {
+          this.addSongToPlaylist(playlist.id, songId);
+        }
+        this.showAddToPlaylistModal(songId); // Refresh the list
+      };
+      
+      listContainer.appendChild(item);
+    });
+
+    // Show the modal
+    modal.style.display = 'flex';
+  }
+
+  // Close all open modals
+  closeAllModals() {
+    document.querySelectorAll('.modal').forEach(modal => {
+      modal.style.display = 'none';
+    });
+  }
+
+  // Show a specific modal
+  showModal(modalId) {
+    this.closeAllModals();
+    const modal = document.getElementById(modalId);
+    if (modal) {
+      modal.style.display = 'flex';
+    }
+  }
+
+  // Hide loading screen
+  hideLoading() {
+    const loadingElement = document.getElementById('loading');
+    if (loadingElement) {
+      loadingElement.style.display = 'none';
+    }
+  }
+}
+
+// Initialize the app
+const musicApp = new MusicApp();
+
+// Make app globally available for HTML event handlers
+window.musicApp = musicApp;
